@@ -499,58 +499,90 @@ function buildExterior(group, plan, texs, colliders) {
   }
 }
 
+/**
+ * すっきりした階段（踏板 + 片側手すりのみ）
+ * 柱の密集・蹴上の重なりを避けて見やすくする
+ */
 function buildStairsMesh(stair, floorH, baseY) {
   const g = new THREE.Group();
-  const steps = 14;
-  const w = stair.maxX - stair.minX;
-  const depth = (stair.highZ ?? stair.maxZ) - (stair.lowZ ?? stair.minZ);
+  const steps = 11;
+  const lowZ = stair.lowZ ?? stair.minZ;
+  const highZ = stair.highZ ?? stair.maxZ;
+  const w = Math.max(0.4, stair.maxX - stair.minX);
+  const depth = Math.max(0.4, highZ - lowZ);
   const stepD = depth / steps;
   const stepH = floorH / steps;
-  const wood = makeMat("#8a6a45", { roughness: 0.55, metalness: 0.06, envMapIntensity: 0.5 });
-  const riser = makeMat("#7a5e3a", { roughness: 0.7 });
+  const cx = (stair.minX + stair.maxX) / 2;
+
+  const wood = makeMat("#9a7348", { roughness: 0.5, metalness: 0.05, envMapIntensity: 0.45 });
+  const sideMat = makeMat("#7d6345", { roughness: 0.65 });
+
+  // 踏板のみ（蹴上は薄い帯だけ）
   for (let i = 0; i < steps; i++) {
-    const z = (stair.lowZ ?? stair.minZ) + (i + 0.5) * stepD;
-    const y = baseY + (i + 0.5) * stepH;
+    const z = lowZ + (i + 0.5) * stepD;
+    const yTop = baseY + (i + 1) * stepH;
     const tread = new THREE.Mesh(
-      new THREE.BoxGeometry(w * 0.94, Math.max(0.04, stepH * 0.35), stepD * 0.95),
+      new THREE.BoxGeometry(w * 0.88, 0.045, stepD * 0.9),
       wood
     );
-    tread.position.set((stair.minX + stair.maxX) / 2, y + stepH * 0.2, z);
+    tread.position.set(cx, yTop, z);
     tread.castShadow = true;
     tread.receiveShadow = true;
     g.add(tread);
-    const r = new THREE.Mesh(
-      new THREE.BoxGeometry(w * 0.94, stepH * 0.85, 0.03),
-      riser
-    );
-    r.position.set((stair.minX + stair.maxX) / 2, y - stepH * 0.15, z - stepD * 0.4);
-    r.castShadow = true;
-    g.add(r);
-  }
-  // 手すり（見た目）
-  const railMat = makeMat("#4a5560", { metalness: 0.55, roughness: 0.35 });
-  for (const x of [stair.minX + 0.04, stair.maxX - 0.04]) {
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const z = (stair.lowZ ?? stair.minZ) + t * depth;
-      const y = baseY + t * floorH + 0.9;
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.95, 8), railMat);
-      post.position.set(x, y - 0.35, z);
-      post.castShadow = true;
-      g.add(post);
+
+    // 薄い蹴上（前縁）
+    if (i > 0) {
+      const riser = new THREE.Mesh(
+        new THREE.BoxGeometry(w * 0.88, stepH * 0.92, 0.025),
+        sideMat
+      );
+      riser.position.set(cx, yTop - stepH / 2, z - stepD * 0.42);
+      riser.castShadow = true;
+      g.add(riser);
     }
-    // 手すりレール
-    const rail = new THREE.Mesh(
-      new THREE.BoxGeometry(0.05, 0.05, depth),
+  }
+
+  // 片側だけ：親柱2本 + 傾斜手すり1本（ごちゃつき防止）
+  const railMat = makeMat("#5a6570", { metalness: 0.45, roughness: 0.4 });
+  const railX = stair.minX + 0.07;
+  const handH = 0.88;
+
+  for (const t of [0, 1]) {
+    const z = lowZ + t * depth;
+    const y = baseY + t * floorH + handH / 2;
+    const post = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.028, 0.032, handH, 10),
       railMat
     );
-    rail.position.set(x, baseY + floorH * 0.55 + 0.45, (stair.minZ + stair.maxZ) / 2);
-    rail.rotation.x = Math.atan2(floorH, depth);
-    g.add(rail);
+    post.position.set(railX, y, z);
+    post.castShadow = true;
+    g.add(post);
   }
-  g.add(
-    makeTextSprite("階段", (stair.minX + stair.maxX) / 2, baseY + floorH * 0.5, (stair.minZ + stair.maxZ) / 2)
+
+  const railLen = Math.hypot(depth, floorH);
+  const angle = Math.atan2(floorH, depth);
+  const handrail = new THREE.Mesh(
+    new THREE.BoxGeometry(0.045, 0.045, railLen),
+    railMat
   );
+  handrail.position.set(
+    railX,
+    baseY + floorH / 2 + handH * 0.92,
+    (lowZ + highZ) / 2
+  );
+  // 低いZ（下）から高いZ（上）へ上がる傾斜
+  handrail.rotation.x = -angle;
+  g.add(handrail);
+
+  // 側板（片側・薄い）— 空間を区切るだけ
+  const side = new THREE.Mesh(
+    new THREE.BoxGeometry(0.04, floorH * 0.95, depth * 0.98),
+    sideMat
+  );
+  side.position.set(stair.maxX - 0.05, baseY + floorH * 0.48, (lowZ + highZ) / 2);
+  side.castShadow = true;
+  g.add(side);
+
   return g;
 }
 
@@ -589,10 +621,24 @@ function buildLevel(level, y0, mats, texs, colliders) {
     }
   }
 
-  // 2F 手すりなど
+  // 2F 手すりなど（低い半透明風）
   for (const w of level.railWalls || []) {
-    const h = w.h ?? 1.05;
-    const mesh = wallMesh(w.a.x, w.a.z, w.b.x, w.b.z, h, 0, mats.rail);
+    const h = w.h ?? 0.95;
+    const mesh = wallMesh(
+      w.a.x,
+      w.a.z,
+      w.b.x,
+      w.b.z,
+      h,
+      0,
+      makeMat("#8a9aaa", {
+        metalness: 0.2,
+        roughness: 0.35,
+        transparent: true,
+        opacity: 0.35,
+        side: THREE.DoubleSide,
+      })
+    );
     if (mesh) g.add(mesh);
     addWallCollider(w, h);
   }
