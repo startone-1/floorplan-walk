@@ -31,6 +31,7 @@ import { drawMinimap } from "./minimap.js";
 import { initTracer } from "./tracer.js";
 import { createMobileControls } from "./mobile.js";
 import { makeEnvMap } from "./textures.js";
+import { assetUrl, setupPlanPreview } from "./planPreview.js";
 
 // ——— DOM ———
 const canvas = document.getElementById("c");
@@ -59,48 +60,71 @@ let touring = false;
 let mapMode = "map";
 let playerLevel = 0;
 
-// ——— Renderer ———
-const renderer = new THREE.WebGLRenderer({
-  canvas,
-  antialias: true,
-  powerPreference: "high-performance",
-});
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.12;
+// ——— Renderer（スマホは軽量設定）———
+const isMobile =
+  "ontouchstart" in window ||
+  navigator.maxTouchPoints > 0 ||
+  window.matchMedia("(pointer: coarse)").matches ||
+  window.innerWidth < 900;
 
-const scene = new THREE.Scene();
-// 空グラデーション風
-scene.background = new THREE.Color("#8eb4d4");
-scene.fog = new THREE.FogExp2(0x9bb8d0, 0.018);
-
+let renderer;
 try {
-  scene.environment = makeEnvMap(renderer);
-} catch {
-  /* env optional */
+  renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: !isMobile,
+    powerPreference: isMobile ? "low-power" : "high-performance",
+    alpha: false,
+    failIfMajorPerformanceCaveat: false,
+  });
+} catch (err) {
+  console.error(err);
+  document.body.insertAdjacentHTML(
+    "afterbegin",
+    `<div class="webgl-error">この端末では3D表示に対応していません。間取り図は物件詳細で確認できます。</div>`
+  );
+  renderer = null;
 }
 
-scene.add(new THREE.HemisphereLight(0xe8f2ff, 0x6b5a48, 0.55));
-const sun = new THREE.DirectionalLight(0xfff1d6, 2.2);
+if (renderer) {
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = !isMobile;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.12;
+}
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color("#8eb4d4");
+scene.fog = new THREE.FogExp2(0x9bb8d0, isMobile ? 0.022 : 0.018);
+
+if (renderer && !isMobile) {
+  try {
+    scene.environment = makeEnvMap(renderer);
+  } catch {
+    /* env optional */
+  }
+}
+
+scene.add(new THREE.HemisphereLight(0xe8f2ff, 0x6b5a48, isMobile ? 0.85 : 0.55));
+const sun = new THREE.DirectionalLight(0xfff1d6, isMobile ? 1.4 : 2.2);
 sun.position.set(14, 22, 10);
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.bias = -0.00025;
-sun.shadow.normalBias = 0.03;
-sun.shadow.camera.near = 1;
-sun.shadow.camera.far = 60;
-sun.shadow.camera.left = -24;
-sun.shadow.camera.right = 24;
-sun.shadow.camera.top = 24;
-sun.shadow.camera.bottom = -24;
+sun.castShadow = !isMobile;
+if (!isMobile) {
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.bias = -0.00025;
+  sun.shadow.normalBias = 0.03;
+  sun.shadow.camera.near = 1;
+  sun.shadow.camera.far = 60;
+  sun.shadow.camera.left = -24;
+  sun.shadow.camera.right = 24;
+  sun.shadow.camera.top = 24;
+  sun.shadow.camera.bottom = -24;
+}
 scene.add(sun);
-scene.add(new THREE.AmbientLight(0xfff5eb, 0.22));
-// 窓からの補助光
-const fillSun = new THREE.DirectionalLight(0xc8dfff, 0.45);
+scene.add(new THREE.AmbientLight(0xfff5eb, isMobile ? 0.4 : 0.22));
+const fillSun = new THREE.DirectionalLight(0xc8dfff, isMobile ? 0.55 : 0.45);
 fillSun.position.set(-8, 10, -6);
 scene.add(fillSun);
 
@@ -233,13 +257,26 @@ function openDetail(id) {
         .filter(Boolean);
   document.getElementById("detail-features").innerHTML = feats.map((f) => `<li>${escapeHtml(f)}</li>`).join("");
 
-  const planWrap = document.getElementById("detail-plan-wrap");
+  // 間取り図プレビュー（データから描画 → 画像が無くてもスマホで表示）
+  const planPreviewEl = document.getElementById("detail-plan-preview");
+  const planPhoto = document.getElementById("detail-plan-photo");
   const planImg = document.getElementById("detail-plan-img");
+  try {
+    const fp = resolveFloorPlan(p);
+    setupPlanPreview(planPreviewEl, fp);
+  } catch (e) {
+    console.warn("plan preview failed", e);
+    if (planPreviewEl) planPreviewEl.innerHTML = "";
+  }
   if (p.planImage) {
-    planWrap.hidden = false;
-    planImg.src = p.planImage;
+    planPhoto.hidden = false;
+    planImg.src = assetUrl(p.planImage);
+    planImg.onerror = () => {
+      planPhoto.hidden = true;
+    };
   } else {
-    planWrap.hidden = true;
+    planPhoto.hidden = true;
+    planImg.removeAttribute("src");
   }
 
   const editBtn = document.getElementById("btn-edit-prop");
@@ -701,7 +738,10 @@ function lookFP() {
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  if (renderer) {
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
 });
 
 // ——— Loop ———
@@ -805,7 +845,7 @@ function tick() {
     camera.lookAt(0, 0, 0);
   }
 
-  renderer.render(scene, camera);
+  if (renderer) renderer.render(scene, camera);
 }
 
 // 階ジャンプボタン

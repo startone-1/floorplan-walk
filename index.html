@@ -147,9 +147,13 @@
               <p id="detail-desc"></p>
             </div>
             <ul class="feature-tags" id="detail-features"></ul>
-            <div class="detail-plan-thumb" id="detail-plan-wrap" hidden>
-              <h4>間取り図</h4>
-              <img id="detail-plan-img" alt="間取り図" />
+            <div class="detail-plan-wrap" id="detail-plan-wrap">
+              <!-- 間取りプレビュー（JSで描画 / 画像があれば併記） -->
+              <div id="detail-plan-preview"></div>
+              <div id="detail-plan-photo" class="detail-plan-photo" hidden>
+                <h4>提供図面</h4>
+                <img id="detail-plan-img" alt="間取り図" />
+              </div>
             </div>
             <button type="button" class="btn primary xl" id="btn-start-tour">
               ▶ 3D内覧をはじめる

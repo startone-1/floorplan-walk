@@ -1385,3 +1385,107 @@ body.is-mobile-tour #c {
     font-size: 0.72rem;
   }
 }
+
+/* —— 間取りプレビュー —— */
+.detail-plan-wrap {
+  margin: 0.85rem 0 1rem;
+}
+
+.plan-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.plan-preview-head h4 {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.plan-level-tabs {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.plan-tab {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.plan-tab.active {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #93c5fd;
+}
+
+.detail-plan-canvas {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  max-height: 320px;
+  display: block;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  touch-action: pan-y;
+}
+
+.plan-preview-note {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 0.4rem;
+  line-height: 1.4;
+}
+
+.detail-plan-photo {
+  margin-top: 0.75rem;
+}
+
+.detail-plan-photo h4 {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.detail-plan-photo img {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+  display: block;
+}
+
+.webgl-error {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: #7f1d1d;
+  color: #fecaca;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .detail-plan-canvas {
+    max-height: 280px;
+    aspect-ratio: 1 / 1;
+  }
+  .plan-tab {
+    min-height: 40px;
+    padding: 0.45rem 0.85rem;
+  }
+}

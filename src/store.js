@@ -63,7 +63,8 @@ export const BUILTIN_PROPERTIES = [
     features: ["2階建て", "階段歩行可", "ウッドデッキ", "パントリー", "SIC", "和室"],
     description:
       "1階に広々LDKと和室、2階に主寝室・子供室。階段を歩いて階を移動できます。",
-    planImage: "/plans/house1f.jpg",
+    // BASE_URL 付きで解決（GitHub Pages 対応）— 先頭スラッシュ単独は使わない
+    planImage: "plans/house1f.jpg",
     planTemplateId: "house-2f",
     accent: "#059669",
   },
