@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#0b1017" />
+    <title>間取りウォーク — 3D内覧</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="app-body">
+    <div id="app">
+      <canvas id="c"></canvas>
+
+      <!-- 物件一覧 -->
+      <section id="screen-catalog" class="screen">
+        <header class="topbar">
+          <div class="brand">
+            <span class="brand-mark">🏠</span>
+            <div>
+              <h1>間取りウォーク</h1>
+              <p>実住所・外観から中まで歩いて体感</p>
+            </div>
+          </div>
+          <div class="topbar-actions">
+            <button type="button" class="btn primary" id="btn-open-register">＋ 物件を登録</button>
+            <button type="button" class="btn secondary" id="btn-open-tracer">間取り図から作成</button>
+            <details class="data-menu">
+              <summary class="btn ghost">データ管理</summary>
+              <div class="data-menu-panel">
+                <button type="button" class="btn secondary" id="btn-export">物件データを書き出し</button>
+                <label class="btn secondary file-btn">
+                  物件データを読込
+                  <input type="file" id="import-json" accept="application/json,.json" hidden />
+                </label>
+                <p class="data-menu-hint">店舗PC間のバックアップ用です</p>
+              </div>
+            </details>
+          </div>
+        </header>
+        <p class="catalog-lead">物件を選ぶと、地図で外観を確認したあと、中を歩いて内覧できます。</p>
+        <div class="catalog-grid" id="catalog-grid"></div>
+      </section>
+
+      <!-- 物件登録 -->
+      <section id="screen-register" class="screen hidden">
+        <header class="topbar compact">
+          <button type="button" class="btn ghost" id="btn-back-from-register">← 一覧</button>
+          <h2 id="register-heading">物件を登録</h2>
+          <span></span>
+        </header>
+        <form id="register-form" class="register-form" autocomplete="on">
+          <div class="form-grid">
+            <label>物件名 *<input name="title" required placeholder="例: グランドメゾン表参道" /></label>
+            <label>号室・区画<input name="unit" placeholder="例: 1203号室" /></label>
+            <label>種別
+              <select name="type">
+                <option>マンション</option>
+                <option>戸建て</option>
+                <option>アパート</option>
+                <option>土地</option>
+                <option>その他</option>
+              </select>
+            </label>
+            <label>間取り<input name="layout" placeholder="例: 2LDK" /></label>
+            <label>面積<input name="area" placeholder="例: 65.2㎡" /></label>
+            <label>価格 *<input name="price" required placeholder="例: 月額 18.5万円 / 販売 7,980万円" /></label>
+            <label>価格備考<input name="priceNote" placeholder="管理費・修繕積立など" /></label>
+            <label class="span2">住所 *
+              <div class="addr-row">
+                <input name="address" required placeholder="例: 東京都港区南青山2-2-3" />
+                <button type="button" class="btn secondary" id="btn-geocode">地図検索</button>
+              </div>
+            </label>
+            <label>緯度<input name="lat" type="number" step="any" placeholder="自動入力" /></label>
+            <label>経度<input name="lng" type="number" step="any" placeholder="自動入力" /></label>
+            <label>築年<input name="built" placeholder="例: 2019年4月" /></label>
+            <label>構造<input name="structure" placeholder="例: RC造 10階建 / 12階" /></label>
+            <label class="span2">アクセス<input name="access" placeholder="例: 銀座線「外苑前」徒歩5分" /></label>
+            <label class="span2">外観・周辺メモ<textarea name="exteriorNotes" rows="2" placeholder="外観の特徴、周辺環境"></textarea></label>
+            <label class="span2">物件説明<textarea name="description" rows="3" placeholder="内覧者向けの説明"></textarea></label>
+            <label class="span2">設備タグ（カンマ区切り）<input name="features" placeholder="オートロック, 宅配BOX, ペット可" /></label>
+            <label>3D間取りテンプレート
+              <select name="planTemplateId" id="plan-template-select">
+                <option value="apt-1ldk">マンション 1LDK</option>
+                <option value="house-2f">戸建て 2階建（階段歩行）</option>
+                <option value="traced">トレース済み間取りを使用</option>
+              </select>
+            </label>
+            <label id="traced-select-wrap" class="hidden">トレース物件
+              <select name="tracedPlanId" id="traced-plan-select"></select>
+            </label>
+            <label>アクセント色<input name="accent" type="color" value="#3b82f6" /></label>
+          </div>
+          <p id="geocode-status" class="form-status"></p>
+          <input type="hidden" name="id" />
+          <div class="form-actions">
+            <button type="submit" class="btn primary xl">保存する</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- 物件詳細 -->
+      <section id="screen-detail" class="screen hidden">
+        <header class="topbar compact">
+          <button type="button" class="btn ghost" id="btn-back-catalog">← 一覧</button>
+          <h2 id="detail-title">物件</h2>
+          <div class="detail-header-actions">
+            <button type="button" class="btn ghost" id="btn-edit-prop">編集</button>
+            <button type="button" class="btn ghost danger" id="btn-delete-prop">削除</button>
+          </div>
+        </header>
+        <div class="detail-layout">
+          <div class="detail-main">
+            <div class="map-tabs">
+              <button type="button" class="tab active" data-map="map">地図</button>
+              <button type="button" class="tab" data-map="street">ストリートビュー（外観）</button>
+            </div>
+            <div class="map-frame">
+              <iframe id="map-iframe" title="Google Map" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+            </div>
+            <div class="map-links">
+              <a id="link-maps" href="#" target="_blank" rel="noopener">Googleマップで開く</a>
+              <a id="link-street" href="#" target="_blank" rel="noopener">ストリートビューで開く</a>
+            </div>
+          </div>
+          <aside class="detail-side">
+            <div class="detail-badge" id="detail-type">マンション</div>
+            <h3 id="detail-name">—</h3>
+            <p class="detail-unit" id="detail-unit"></p>
+            <p class="detail-price" id="detail-price"></p>
+            <p class="detail-price-note" id="detail-price-note"></p>
+            <dl class="detail-dl">
+              <div><dt>住所</dt><dd id="detail-address"></dd></div>
+              <div><dt>間取り</dt><dd id="detail-layout"></dd></div>
+              <div><dt>面積</dt><dd id="detail-area"></dd></div>
+              <div><dt>築年 / 構造</dt><dd id="detail-built"></dd></div>
+              <div><dt>アクセス</dt><dd id="detail-access"></dd></div>
+            </dl>
+            <div class="detail-block">
+              <h4>外観・周辺</h4>
+              <p id="detail-exterior"></p>
+            </div>
+            <div class="detail-block">
+              <h4>物件説明</h4>
+              <p id="detail-desc"></p>
+            </div>
+            <ul class="feature-tags" id="detail-features"></ul>
+            <div class="detail-plan-thumb" id="detail-plan-wrap" hidden>
+              <h4>間取り図</h4>
+              <img id="detail-plan-img" alt="間取り図" />
+            </div>
+            <button type="button" class="btn primary xl" id="btn-start-tour">
+              ▶ 3D内覧をはじめる
+            </button>
+            <p class="detail-tour-hint">
+              玄関の外からスタートします。中に入り、部屋の広さや動線を体験できます。<br />
+              戸建ては階段で2階へも歩けます。
+            </p>
+          </aside>
+        </div>
+      </section>
+
+      <!-- 壁トレース -->
+      <section id="screen-tracer" class="screen hidden">
+        <header class="topbar compact">
+          <button type="button" class="btn ghost" id="btn-back-from-tracer">← 一覧</button>
+          <h2>間取りを取り込む</h2>
+          <span></span>
+        </header>
+        <div id="tracer-root"></div>
+      </section>
+
+      <!-- 内覧 HUD -->
+      <div id="hud" class="hidden">
+        <div class="hud-top-left">
+          <button type="button" class="btn ghost hud-back" id="btn-exit-tour">← やめる</button>
+          <div id="tour-prop-title" class="tour-prop-title"></div>
+        </div>
+        <div id="room-label">—</div>
+        <div id="floor-badge">1F</div>
+        <div id="floor-jumps" class="floor-jumps hidden">
+          <button type="button" class="btn secondary" data-floor="0">1階へ</button>
+          <button type="button" class="btn secondary" data-floor="1">2階へ</button>
+        </div>
+        <div id="crosshair">+</div>
+        <div id="minimap-wrap">
+          <canvas id="minimap" width="168" height="190"></canvas>
+          <span class="minimap-title">いまの位置</span>
+        </div>
+        <div id="tour-guide" class="tour-guide hidden">
+          <strong>操作方法</strong>
+          <ul>
+            <li class="desktop-only"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> または 矢印キーで歩く</li>
+            <li class="desktop-only">マウスで見回す（画面をクリック）</li>
+            <li class="mobile-only"><b>画面の左</b>をタッチしたまま動かして歩く</li>
+            <li class="mobile-only"><b>画面の右</b>をスワイプして見回す</li>
+            <li>玄関のドアから中へ進んでください</li>
+            <li>下のボタンで「上から」「地図」「やめる」が使えます</li>
+          </ul>
+          <button type="button" class="btn primary" id="btn-dismiss-guide">わかった・はじめる</button>
+        </div>
+        <div id="controls-help" class="desktop-only-block">
+          <span class="desktop-only">
+            <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 歩く
+            <span class="sep">·</span>
+            マウス 見回し
+            <span class="sep">·</span>
+            <kbd>B</kbd> 上から
+          </span>
+        </div>
+        <div class="hud-actions desktop-only-block">
+          <button type="button" id="view-toggle" class="btn secondary">上から見る</button>
+          <button type="button" id="btn-maps-overlay" class="btn secondary">地図・外観</button>
+        </div>
+        <div id="mobile-root"></div>
+      </div>
+
+      <div id="maps-overlay" class="hidden">
+        <div class="maps-overlay-card">
+          <header>
+            <h3>地図・外観</h3>
+            <button type="button" class="btn ghost" id="btn-close-maps">閉じる</button>
+          </header>
+          <div class="map-tabs small">
+            <button type="button" class="tab active" data-overlay-map="map">地図</button>
+            <button type="button" class="tab" data-overlay-map="street">外観</button>
+          </div>
+          <iframe id="overlay-iframe" title="Map overlay"></iframe>
+          <p id="overlay-address" class="overlay-address"></p>
+        </div>
+      </div>
+
+      <div id="click-hint" class="hidden">
+        <span class="desktop-only">画面をクリックして視点操作をオン</span>
+        <span class="mobile-only">左で歩く · 右で見回す</span>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
